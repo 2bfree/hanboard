@@ -21,6 +21,6 @@ BeFRee Project · HanBoard
 
 ## 이미지 파일
 
-최종 선택한 6개 도시 콘셉트 이미지의 등록 예정 경로는 `assets/hanboard-city-series.png`입니다. PNG 원본은 아직 이 저장소에 업로드되지 않았습니다. 등록 후 메인 README에 이미지를 표시합니다.
+6개 도시의 디자인은 [City Series 콘셉트 이미지](hanboard-city-series.png)에서 볼 수 있습니다. HanBoard Tokyo의 iOS 앱은 후지산과 도쿄 타워를 그린 콘셉트를 바탕으로, 하늘을 차분한 청보라색으로 조정한 [1024px 앱 아이콘](../ios/App/Assets.xcassets/AppIcon.appiconset/HanBoardTokyo.png)을 사용합니다.
 
-현재 디자인은 AI로 생성한 연구·브랜딩 콘셉트이며, 실제 랜드마크 사진이나 출시용 앱 아이콘이 아닙니다. 앱 아이콘 규격, 작은 크기의 가독성, 브랜드 및 이미지 사용 정책은 출시 전에 검토합니다.
+도시 일러스트는 AI로 제작했습니다.
