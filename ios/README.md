@@ -31,6 +31,7 @@ No Full Access is requested. The app does not transmit typed text or use the mic
 
 - All 26 modern jamo retain their original positions. No archaic characters, dedicated punctuation keys, flick input, or translation.
 - Default mode shows hiragana while typing. Return or Space converts the whole pending reading once and commits it with the selected separator. Use Return after finishing a sentence, or Space to finish a shorter phrase.
+- Type the object particle as it sounds, using `ㅗ` for `お`. On commit, the offline dictionary compares whole-sentence readings and writes `を` when the particle reading scores clearly higher. Typed words such as `お茶` and `大阪` are also evaluated with their original reading.
 - Select a kanji word in the latest passage converted by HanBoard to see alternatives above the keys. For example, select 橋 in 橋で食べます to replace it with 箸 or はし. The correction row closes after picking a replacement or moving the selection and stays hidden during ordinary typing.
 - Shift toggles forced katakana in the letter layout. The space bar shows `日本語` or `カタカナ` for the current mode.
 - Shift and 123 finish the current reading before switching layouts. In the number layout, `#+=` opens the second symbol page. Delete first removes a pending jamo and repeats while held.
@@ -85,6 +86,6 @@ swiftc ios/Core/KanaMapper.swift ios/Tests/main.swift -o /tmp/hanboard-kana-test
 - Measure the first keyboard launch on a physical device. The simulator sometimes displayed a system keyboard on the first selection after reinstalling the app. Selecting HanBoard again loaded the extension.
 - Verify marked-text lifecycle and safe cursor movement across host apps, key previews, orientation, accessibility and dynamic return behavior.
 - Native-like geometry is a first approximation, not pixel-identical to any iOS version. Compare actual iPhone light/dark screenshots.
-- Complete the phonetic rules for long-vowel spelling, particles は/へ/を, foreign sounds, and resolving ambiguous sequences. Current parser preserves vowel length but does not automatically restore every spelling. Basic dictionary conversion only works on the reading it receives.
+- Expand phonetic handling for long vowels, foreign sounds, particles は/へ/を, and ambiguous sequences. The offline dictionary adapter handles some pronounced particles on commit.
 - Expand correction beyond the latest conversion, and add forced hiragana, rare kana handling, and automatic punctuation.
 - Validate real user transcription data, model licenses and upstream notices before release.

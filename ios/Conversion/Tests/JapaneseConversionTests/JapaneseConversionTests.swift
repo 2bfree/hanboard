@@ -22,6 +22,37 @@ final class JapaneseConversionTests: XCTestCase {
         XCTAssertEqual(result, "僕は学生です")
     }
 
+    func testRestoresSpokenObjectParticles() async {
+        let engine = JapaneseContextEngine()
+        let cases = [
+            ("しりょうおかくにんしました", "資料を確認しました"),
+            ("いぬとこうえんおさんぽします", "犬と公園を散歩します"),
+            ("ほんおよんでいます", "本を読んでいます"),
+            ("ここでしゃしんおとってもいいですか", "ここで写真を撮ってもいいですか"),
+            ("おちゃおもういっぱいください", "お茶をもういっぱいください"),
+            ("みずおのんでくすりおのみます", "水を飲んで薬を飲みます")
+        ]
+        for (reading, expected) in cases {
+            let result = await engine.convert(reading)
+            XCTAssertEqual(result, expected, reading)
+        }
+    }
+
+    func testPreservesSpokenOInsideWords() async {
+        let engine = JapaneseContextEngine()
+        let cases = [
+            ("それはおちゃです", "それはお茶です"),
+            ("すこしおまちください", "少しお待ちください"),
+            ("おおさかにいきます", "大阪に行きます"),
+            ("いまはおちついています", "今は落ち着いています"),
+            ("あとでおうちにかえります", "あとでおうちに帰ります")
+        ]
+        for (reading, expected) in cases {
+            let result = await engine.convert(reading)
+            XCTAssertEqual(result, expected, reading)
+        }
+    }
+
     func testCorrectsOnlySelectedKanjiUsingTheOriginalReading() async throws {
         let conversion = await JapaneseContextEngine().conversion(for: "はしでたべます")
         XCTAssertEqual(conversion.text, "橋で食べます")

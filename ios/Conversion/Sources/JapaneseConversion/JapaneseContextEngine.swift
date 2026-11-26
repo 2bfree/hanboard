@@ -47,7 +47,11 @@ public actor JapaneseContextEngine {
             zenzaiMode: mode,
             metadata: .init(versionString: "HanBoard Tokyo 0.1")
         )
-        let candidates = fullCandidates(for: reading, using: converter, options: options)
+        func lookup(_ text: String) -> [Candidate] {
+            fullCandidates(for: text, using: converter, options: options)
+        }
+        var writtenReading = reading
+        var candidates = lookup(reading)
         guard let best = candidates.first else { return unconverted }
         guard case .off = mode else {
             return JapaneseConversionResult(preferredText: best.text, candidates: candidates)
@@ -56,18 +60,19 @@ public actor JapaneseContextEngine {
         if let spokenTopic = JapaneseCandidateSelection.spokenTopic(in: best),
            let index = reading.index(reading.startIndex, offsetBy: spokenTopic.offset, limitedBy: reading.endIndex),
            index < reading.endIndex, reading[index] == "わ" {
-            var writtenReading = reading
-            writtenReading.replaceSubrange(index...index, with: "は")
-            let writtenCandidates = fullCandidates(for: writtenReading, using: converter, options: options)
+            var topicReading = reading
+            topicReading.replaceSubrange(index...index, with: "は")
+            let writtenCandidates = lookup(topicReading)
             if let topic = writtenCandidates.first,
                Float(topic.value) >= Float(best.value) + 4,
                JapaneseCandidateSelection.hasTopicParticle(matching: spokenTopic, in: topic) {
-                let preferred = JapaneseCandidateSelection.preferredText(in: writtenCandidates, best: topic)
-                return JapaneseConversionResult(preferredText: preferred, candidates: writtenCandidates)
+                writtenReading = topicReading
+                candidates = writtenCandidates
             }
         }
 
-        let preferred = JapaneseCandidateSelection.preferredText(in: candidates, best: best)
+        candidates = JapaneseObjectParticle.restore(in: writtenReading, candidates: candidates, convert: lookup)
+        let preferred = JapaneseCandidateSelection.preferredText(in: candidates, best: candidates.first ?? best)
         return JapaneseConversionResult(preferredText: preferred, candidates: candidates)
     }
 
