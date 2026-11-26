@@ -7,11 +7,11 @@
 **Type as you speak.**  
 **말하듯이 입력하다.**
 
-> 서로 다른 언어를 사용하는 사람들이 한글의 자음·모음 조합 원리를 활용해 자신의 언어를 더 쉽고 편리하게 입력할 수 있을까?
+> 자국의 문자 체계를 일반적인 키보드로 직접 입력하기 어려워 로마자 기반 입력기에 의존하거나 이를 대안으로 사용하는 사람들이, 한글의 자음·모음 조합 원리를 활용하면 자신의 언어를 더 쉽고 편리하게 입력할 수 있을까?
 
 HanBoard는 이 질문에서 출발한 **한글 기반 다국어 발음 입력 시스템 연구 및 개발 프로젝트**입니다. 첫 번째 제품인 **HanBoard Tokyo**는 일본어 원어민이 한글 자판으로 일본어 발음을 입력하면, 시스템이 문맥에 맞는 자연스러운 일본어 문장을 출력하는 키보드를 목표로 합니다.
 
-HanBoard is a multilingual phonetic input research project built around the consonant–vowel composition principles of Hangul. Its first planned keyboard, HanBoard Tokyo, is designed for native Japanese speakers, not for translation or Korean language learning.
+HanBoard is a multilingual phonetic input research project built around the consonant–vowel composition principles of Hangul. It focuses on non-Latin writing systems where native-script entry is complex and romanized phonetic input is used as an alternative. Its first planned keyboard, HanBoard Tokyo, is designed for native Japanese speakers, not for translation or Korean language learning. Latin-script languages are outside the current scope.
 
 [City Series 디자인 방향 및 브랜드 자산](assets/README.md) · 최종 콘셉트 이미지 등록 예정
 
@@ -49,7 +49,7 @@ HanBoard is a multilingual phonetic input research project built around the cons
 
 **중요한 전제는 한글 자판이 반드시 더 빠르거나 쉽다는 결론을 미리 내리지 않는다는 것입니다.** 일본인에게 한글 자모는 익숙하지 않은 기호일 수 있으며, 이미 숙련된 플릭 입력을 대체하기 어려울 수도 있습니다. 실제 입력 시간, 정확도, 학습 비용까지 검증해야 합니다.
 
-첫 번째 연구 대상은 일본어이지만, HanBoard가 지향하는 것은 특정 언어에 국한되지 않는 입력 인터페이스입니다. 다른 언어의 음운 구조에 대한 별도 연구를 거쳐 향후 확장 가능성을 검토합니다.
+첫 번째 연구 대상은 일본어입니다. 향후 확장 대상은 자국 문자의 종류나 조합이 많아 일반적인 제한된 키 배열로 입력하기 어렵고, 로마자를 발음 입력의 매개로 사용하는 비라틴 문자 언어권으로 한정합니다. 영어·프랑스어·베트남어 등 라틴 문자 기반 언어는 현재 범위에서 제외합니다. 각 언어의 음운 구조와 실제 입력 관행을 조사한 뒤 확장 타당성을 검증합니다.
 
 ## 2. 무엇이 다른가
 
@@ -78,16 +78,24 @@ flowchart LR
 
 HanBoard는 여러 언어를 하나의 공통 브랜드 아래 독립적인 키보드 시리즈로 제공하는 것을 목표로 합니다. 도시의 이름을 사용해 각 앱의 개성과 시리즈의 통일성을 표현합니다.
 
-| 제품명 | 대상 언어 | 개발 상태 |
-| --- | --- | --- |
-| **HanBoard Tokyo** | 일본어 · 日本語 | 첫 번째 연구 및 개발 대상 |
-| HanBoard London | 영어 · English | 확장 후보 |
-| HanBoard Paris | 프랑스어 · Français | 확장 후보 |
-| HanBoard Beijing | 중국어 · 中文 | 확장 후보 |
-| HanBoard Bangkok | 태국어 · ภาษาไทย | 확장 후보 |
-| HanBoard Hanoi | 베트남어 · Tiếng Việt | 확장 후보 |
+### 대상 언어 선정 기준
 
-도시 이름이 특정 언어권 전체를 대표하는 것은 아닙니다. City Series는 브랜드 명명 방식이며, 실제 지원 언어·방언·지역은 앱 설명에서 명확히 안내합니다. 영어나 중국어 등은 일본어와 다른 음절 구조, 성조, 철자 체계가 있으므로 동일한 매핑으로 지원할 수 있다고 가정하지 않습니다.
+- 비라틴 문자 체계를 사용하며, 문자 종류 또는 결합 방식 때문에 제한된 키보드에서 직접 입력하기 어려운 언어
+- 로마자 기반 발음 입력기가 실제로 사용되는 언어
+- 한글 자모의 조합 원리가 기존 입력 방식보다 편리할 가능성이 있는 언어
+
+라틴 문자를 본래 표기 문자로 사용하는 언어는 현재 대상에서 제외합니다. 단순히 문자 수가 키 수보다 많다는 이유만으로 개발을 결정하지 않고, 기존 입력 방식의 편의성 및 한글 기반 입력의 개선 가능성을 검증합니다.
+
+| 제품명 | 대상 언어 | 기존 입력 방식 (예시) | 개발 상태 |
+| --- | --- | --- | --- |
+| **HanBoard Tokyo** | 일본어 · 日本語 | 로마자 입력, 가나·플릭 입력 | 첫 번째 연구 및 개발 대상 |
+| HanBoard Beijing | 표준 중국어 · 普通话 | 병음(Pinyin) 기반 입력 | 확장 연구 후보 |
+| HanBoard Bangkok | 태국어 · ภาษาไทย | 태국어 자판, 로마자 기반 변환 입력 | 확장 연구 후보 |
+| HanBoard Delhi | 힌디어 · हिन्दी | 로마자 → 데바나가리 문자 변환 | 확장 연구 후보 |
+| HanBoard Dhaka | 벵골어 · বাংলা | Avro 등 로마자 기반 발음 입력 | 확장 연구 후보 |
+| HanBoard Chennai | 타밀어 · தமிழ் | 로마자 기반 발음 입력 | 확장 연구 후보 |
+
+도시 이름은 브랜드 명명 방식이며 해당 도시 또는 국가의 모든 언어를 지원한다는 의미는 아닙니다. 실제 지원 언어·방언·지역은 앱 설명에서 명확히 안내합니다. 일본어 이외의 언어는 개발이 확정된 것이 아니며, 특히 태국어 등 자국 문자 직접 입력이 일반적인 언어는 로마자 입력의 실제 사용성과 수요를 별도로 검증해야 합니다. 중국어와 태국어의 성조, 인도계 문자의 모음 결합 및 자음군 등 각 언어의 특성도 개별 연구 대상으로 삼습니다.
 
 ### 디자인 아이덴티티
 
@@ -97,7 +105,7 @@ HanBoard는 여러 언어를 하나의 공통 브랜드 아래 독립적인 키�
 - 국기나 추가 키캡은 기본 시안에서 제외합니다.
 - 실제 홈 화면에서 심볼과 도시명이 충분히 식별되는지 검증한 뒤 최종 아이콘을 제작합니다.
 
-현재 이미지는 시리즈의 디자인 방향을 보여 주는 콘셉트 시안입니다. 정식 앱 아이콘 규격 및 상표 사용 가능성은 출시 전에 확인해야 합니다.
+최종 선택한 시리즈 디자인은 Tokyo, Beijing, Bangkok, Delhi, Dhaka, Chennai의 6개 도시 콘셉트입니다. 원본 이미지의 저장소 등록은 아직 남아 있습니다. 정식 앱 아이콘 규격 및 상표 사용 가능성은 출시 전에 확인해야 합니다.
 
 ## 4. HanBoard Tokyo의 사용자 경험
 
@@ -437,7 +445,7 @@ hanboard/
 | `hanboard-tokyo-corpus` | 한국인의 일본어 비공식 한글 발음 표기 데이터셋 |
 | `hanboard-core` | 공통 자모 입력 및 발음 변환 엔진 |
 | `hanboard-tokyo` | 일본어용 키보드 앱 |
-| `hanboard-london`, `hanboard-paris` 등 | 향후 언어별 키보드 앱 |
+| `hanboard-beijing`, `hanboard-bangkok`, `hanboard-delhi`, `hanboard-dhaka`, `hanboard-chennai` | 향후 확장 연구 후보 (별도 검증 후 개발 결정) |
 
 데이터셋은 키보드 앱과 독립적으로 연구에 활용할 수 있도록 스키마, 버전, 수집 방법과 라이선스를 관리합니다.
 
