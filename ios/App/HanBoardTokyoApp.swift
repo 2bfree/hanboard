@@ -34,8 +34,20 @@ private struct SetupView: View {
                         .font(.footnote).foregroundStyle(.secondary)
                 }
                 Section("入力テスト") {
-                    TextEditor(text: $text).frame(minHeight: 120)
-                    Text("例：ㅅㅡㅅㅣ → すし／寿司")
+                    TextEditor(text: $text)
+                        .frame(minHeight: 120)
+                        .accessibilityLabel("入力テスト")
+                    HStack {
+                        Button("すべてコピー") { UIPasteboard.general.string = text }
+                            .disabled(text.isEmpty)
+                        Spacer()
+                        PasteButton(payloadType: String.self) { items in
+                            text += items.joined(separator: "\n")
+                        }
+                        .accessibilityHint("入力欄の末尾に追加します")
+                    }
+                    .buttonStyle(.borderless)
+                    Text("例：ㅅㅡㅅㅣ → すし。改行または空白で変換・確定すると「寿司」になります。")
                     Text("⇧：カタカナモードに切り替え")
                     Button("クリア") { text = "" }
                 }

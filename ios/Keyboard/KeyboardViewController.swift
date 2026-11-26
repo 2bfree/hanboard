@@ -12,8 +12,8 @@ final class KeyboardViewController: UIInputViewController {
     private var raw = ""
     private var markedText = ""
     private var documentID: UUID?
-    private var revision = 0
-    private var task: Task<Void, Never>?
+    private var pendingCommit: (task: Task<Void, Never>, suffix: String)?
+    private var queuedKeyActions: [() -> Void] = []
     private var heightConstraint: NSLayoutConstraint?
     private var leftContext = ""
     private var isWriting = false
@@ -54,7 +54,12 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     override func viewWillDisappear(_ animated: Bool) {
-        finishComposition()
+        syncDocument()
+        if let pendingCommit {
+            commit(markedText + pendingCommit.suffix)
+        } else {
+            finishComposition(converting: false)
+        }
         super.viewWillDisappear(animated)
     }
 
@@ -81,8 +86,9 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     private func abandonComposition() {
-        revision += 1
-        task?.cancel()
+        pendingCommit?.task.cancel()
+        pendingCommit = nil
+        queuedKeyActions.removeAll()
         raw = ""
         markedText = ""
         leftContext = ""
@@ -131,9 +137,18 @@ final class KeyboardViewController: UIInputViewController {
         button.accessibilityLabel = text ?? image
         if id == "shift" { button.accessibilityLabel = "カタカナ切り替え" }
         if id == "delete" { button.accessibilityLabel = "削除" }
-        button.addAction(UIAction { _ in action() }, for: .touchUpInside)
+        button.addAction(UIAction { [weak self] _ in self?.handleKeyAction(action) }, for: .touchUpInside)
         view.addSubview(button)
         keys[id] = button
+    }
+
+    private func handleKeyAction(_ action: @escaping () -> Void) {
+        syncDocument()
+        if pendingCommit == nil {
+            action()
+        } else {
+            queuedKeyActions.append(action)
+        }
     }
 
     private func layoutKeys() {
@@ -268,52 +283,61 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     private func render() {
-        revision += 1
-        let currentRevision = revision
-        task?.cancel()
         let parsed = mapper.parse(raw, mode: katakanaMode ? .katakana : .automatic)
         // Incomplete jamo stay in the keyboard buffer; only Japanese reaches the host.
         writeMarked(parsed.kana)
         keys["space"]?.accessibilityHint = parsed.complete ? nil : "未確定の入力があります"
-        guard !katakanaMode, parsed.complete, !parsed.kana.isEmpty else { return }
-        let reading = parsed.kana
-        let context = leftContext
-        let currentDocument = documentID
-        task = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 100_000_000)
-            guard !Task.isCancelled, let self else { return }
-            let converted = await self.engine.convert(reading, leftContext: context)
-            guard !Task.isCancelled, self.revision == currentRevision,
-                  self.documentID == currentDocument,
-                  self.textDocumentProxy.documentIdentifier == currentDocument,
-                  !self.markedText.isEmpty else { return }
-            self.writeMarked(converted)
-        }
     }
 
     @discardableResult
-    private func finishComposition(inserting suffix: String = "") -> Bool {
+    private func finishComposition(inserting suffix: String = "", converting: Bool = true) -> Bool {
         syncDocument()
-        if !raw.isEmpty {
-            let parsed = mapper.parse(raw, mode: katakanaMode ? .katakana : .automatic)
-            guard parsed.complete else {
-                UIAccessibility.post(notification: .announcement, argument: "未確定の入力を修正してください")
-                return false
-            }
+        let parsed = mapper.parse(raw, mode: katakanaMode ? .katakana : .automatic)
+        guard parsed.complete else {
+            UIAccessibility.post(notification: .announcement, argument: "未確定の入力を修正してください")
+            return false
         }
+        guard converting, !katakanaMode, !parsed.kana.isEmpty else {
+            commit(parsed.kana + suffix)
+            return true
+        }
+
+        let proxy = textDocumentProxy
+        let document = proxy.documentIdentifier
+        let before = proxy.documentContextBeforeInput
+        let after = proxy.documentContextAfterInput
+        let context = leftContext
+        let task = Task { [weak self, engine] in
+            let converted = await engine.convert(parsed.kana, leftContext: context)
+            guard let self, !Task.isCancelled else { return }
+            let current = self.textDocumentProxy
+            guard current.documentIdentifier == document,
+                  current.documentContextBeforeInput == before,
+                  current.documentContextAfterInput == after else {
+                self.abandonComposition()
+                return
+            }
+
+            let queued = self.queuedKeyActions
+            self.commit(converted + suffix)
+            for action in queued { self.handleKeyAction(action) }
+        }
+        pendingCommit = (task, suffix)
+        return true
+    }
+
+    private func commit(_ text: String) {
         isWriting = true
         defer { isWriting = false }
-        let committedText = markedText + suffix
         if !markedText.isEmpty {
             // Clear just the marked range, then commit through the host's normal text entry.
             textDocumentProxy.setMarkedText("", selectedRange: NSRange(location: 0, length: 0))
             textDocumentProxy.unmarkText()
         }
-        if !committedText.isEmpty {
-            textDocumentProxy.insertText(committedText)
+        if !text.isEmpty {
+            textDocumentProxy.insertText(text)
         }
         abandonComposition()
-        return true
     }
 }
 

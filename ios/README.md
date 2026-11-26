@@ -31,9 +31,10 @@ No Full Access is requested. The app does not transmit typed text or use the mic
 ## Input behavior
 
 - All 26 modern jamo retain their original positions. No archaic characters, dedicated punctuation keys, flick input, or translation.
-- Default mode: input jamo → kana → top full-reading dictionary conversion result, updated inside the active marked text.
+- Default mode shows hiragana while typing. Return or Space converts the whole pending reading once and commits it with the selected separator. Use Return after finishing a sentence, or Space to finish a shorter phrase.
 - Shift toggles forced katakana and keeps the same jamo labels. It is not the Korean doubled-consonant modifier.
-- 123 switches to numbers/symbols; space and return commit the visible composition and insert the respective character. Delete first removes a pending jamo.
+- Shift and 123 also finish the current reading before switching layouts. Delete first removes a pending jamo.
+- The setup app's test editor can copy all text or append clipboard text with the system paste button.
 - Unresolved jamo are kept internally; committing an unresolved sequence is blocked. For example, ㅓ and ㅕ remain on the keyboard without a mapping.
 - The root `mappings/ja/kana.csv` is bundled directly. No duplicate dictionary.
 - ㅅㅡㅅㅣ → すし; ㅊㅛㅅㅌㅗ → ちょっと; ㅋㅏㄴㅇㅣ → かんい. These are kana parser expectations, not measured contextual conversion results.
@@ -42,7 +43,7 @@ No Full Access is requested. The app does not transmit typed text or use the mic
 
 ## Japanese conversion
 
-`Conversion` is a local Swift package that pins AzooKeyKanaKanjiConverter **v0.11.2**. The adapter runs conversion on an actor, disables prediction and persistent learning, and only accepts a candidate whose reading matches the input. The keyboard debounces requests and rejects stale results.
+`Conversion` is a local Swift package that pins AzooKeyKanaKanjiConverter **v0.11.2**. The adapter runs conversion on an actor, disables prediction and persistent learning, and only accepts a candidate whose reading matches the input. The keyboard submits a single request when the user finishes a reading and rejects results for an expired insertion point.
 
 The default build uses the offline dictionary converter. The Zenzai adapter is provided but the neural model is **not enabled by default**. In the extension, actual available memory, speed, and model rights must be checked before enabling it.
 
@@ -73,8 +74,7 @@ swiftc ios/Core/KanaMapper.swift ios/Tests/main.swift -o /tmp/hanboard-kana-test
 
 - **31/31 parser checks passed** against the checked-in mapping CSV on macOS and Linux.
 - XcodeGen 2.49.0 generated the project without Zenzai weights. Xcode 27.2 resolved the Swift packages, built the app and keyboard extension, and installed the app on the iPhone 18 Pro simulator. The extension bundle contains the mapping CSV and dictionary.
-- In the simulator, the HanBoard keyboard was enabled from Settings. In the app's editor, `ㅅㅡㅅㅣ` converted to `寿司`, and Shift produced `スシ`. Space and Return committed both results once and preserved earlier input.
-- Rapid commit before the asynchronous converter completes can leave kana unconverted. Marked-text and conversion timing require further iOS UX testing.
+- On the iPhone 18 Pro simulator, `すしです` stayed in hiragana while typing and became `寿司です` on Return. Shift produced `スシ`, which Space committed without changing the earlier line. The editor copied and pasted both lines together.
 
 ## Remaining work
 
