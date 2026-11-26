@@ -65,6 +65,12 @@ swiftc ios/Core/KanaMapper.swift ios/Tests/main.swift -o /tmp/hanboard-kana-test
 /tmp/hanboard-kana-tests mappings/ja/kana.csv
 ```
 
+## Verification so far
+
+- Swift 6.2.1 (Linux): **31/31 parser checks passed** against the checked-in 181-row mapping CSV. The tested source and CSV Git blob hashes match the committed files.
+- Swift Package manifest: `swift package dump-package` passed. Package resolution, upstream converter compilation, XcodeGen generation and iOS runtime have not been verified.
+- Rapid commit before the asynchronous converter completes can leave kana unconverted. Marked-text and conversion timing require further iOS UX testing.
+
 ## Remaining work
 
 - Verify the Xcode project generation, Swift package resolution and real iOS build, signing, device installation and memory usage.
