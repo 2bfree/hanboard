@@ -3,6 +3,13 @@ import JapaneseConversion
 
 /// Displays the HanBoard keyboard with the familiar Korean two-set key order.
 final class KeyboardViewController: UIInputViewController {
+    private struct TextSelection: Equatable {
+        let document: UUID
+        let text: String
+        let before: String
+        let after: String
+    }
+
     private enum Page {
         case letters, numbers, symbols
 
@@ -27,6 +34,11 @@ final class KeyboardViewController: UIInputViewController {
     private var heightConstraint: NSLayoutConstraint?
     private var leftContext = ""
     private var isWriting = false
+    private var recentConversion: JapaneseConversionResult?
+    private var shownSelection: TextSelection?
+    private var dismissedSelection: TextSelection?
+    private let correctionBar = UIStackView()
+    private let correctionHeight: CGFloat = 42
 
     private lazy var mapper: KanaMapper = {
         let url = Bundle.main.url(forResource: "kana", withExtension: "csv")
@@ -39,11 +51,16 @@ final class KeyboardViewController: UIInputViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         primaryLanguage = "ja-JP"
+        correctionBar.spacing = 6
+        correctionBar.distribution = .fill
+        correctionBar.isHidden = true
+        view.addSubview(correctionBar)
         buildKeys()
     }
 
     override func updateViewConstraints() {
-        let preferredHeight: CGFloat = traitCollection.verticalSizeClass == .compact ? 174 : 216
+        let keyArea: CGFloat = traitCollection.verticalSizeClass == .compact ? 174 : 216
+        let preferredHeight = keyArea + (correctionBar.isHidden ? 0 : correctionHeight)
         if heightConstraint == nil {
             let constraint = view.heightAnchor.constraint(equalToConstant: preferredHeight)
             constraint.priority = .defaultHigh
@@ -80,12 +97,18 @@ final class KeyboardViewController: UIInputViewController {
         } else {
             finishComposition(converting: false)
         }
+        recentConversion = nil
+        dismissedSelection = nil
+        hideCorrections()
         super.viewWillDisappear(animated)
     }
 
     override func textDidChange(_ textInput: UITextInput?) {
         super.textDidChange(textInput)
-        if !isWriting { syncDocument() }
+        if !isWriting {
+            syncDocument()
+            refreshCorrections()
+        }
         updateColors()
         updateReturnKey()
     }
@@ -97,11 +120,17 @@ final class KeyboardViewController: UIInputViewController {
         if !markedText.isEmpty, let selected = textDocumentProxy.selectedText, !selected.isEmpty {
             abandonComposition()
         }
+        refreshCorrections()
     }
 
     private func syncDocument() {
         let id = textDocumentProxy.documentIdentifier
-        if let documentID, documentID != id { abandonComposition() }
+        if let documentID, documentID != id {
+            abandonComposition()
+            recentConversion = nil
+            dismissedSelection = nil
+            hideCorrections()
+        }
         documentID = id
     }
 
@@ -181,6 +210,7 @@ final class KeyboardViewController: UIInputViewController {
 
     private func handleKeyAction(_ action: @escaping () -> Void) {
         syncDocument()
+        hideCorrections()
         if pendingCommit == nil {
             action()
         } else {
@@ -190,7 +220,8 @@ final class KeyboardViewController: UIInputViewController {
 
     private func layoutKeys() {
         let width = view.bounds.width
-        let height = view.bounds.height
+        let correctionOffset = correctionBar.isHidden ? 0 : correctionHeight
+        let height = view.bounds.height - correctionOffset
         guard width >= 160, height >= 110 else { return }
         let compact = height < 190
         let inset: CGFloat = 6
@@ -202,9 +233,10 @@ final class KeyboardViewController: UIInputViewController {
         let keyWidth = (usableWidth - horizontalGap * 9) / 10
         let keyHeight = (height - topPadding - bottomPadding - verticalGap * 3) / 4
         let labels = page.rows
+        correctionBar.frame = CGRect(x: inset, y: 5, width: usableWidth, height: correctionHeight - 5)
 
         func put(_ id: String, _ x: CGFloat, _ row: Int, _ w: CGFloat) {
-            keys[id]?.frame = CGRect(x: x, y: topPadding + CGFloat(row) * (keyHeight + verticalGap), width: w, height: keyHeight)
+            keys[id]?.frame = CGRect(x: x, y: correctionOffset + topPadding + CGFloat(row) * (keyHeight + verticalGap), width: w, height: keyHeight)
         }
         for row in 0...1 {
             let n = CGFloat(labels[row].count)
@@ -244,6 +276,9 @@ final class KeyboardViewController: UIInputViewController {
             : UIColor(red: 0.87, green: 0.91, blue: 0.96, alpha: 1)
         keys.forEach { id, button in
             button.applyPalette(dark: dark, active: page == .letters && id == "shift" && katakanaMode)
+        }
+        for case let button as KeyButton in correctionBar.arrangedSubviews {
+            button.applyPalette(dark: dark, active: false)
         }
     }
 
@@ -381,7 +416,7 @@ final class KeyboardViewController: UIInputViewController {
         let after = proxy.documentContextAfterInput
         let context = leftContext
         let task = Task { [weak self, engine] in
-            let converted = await engine.convert(parsed.kana, leftContext: context)
+            let converted = await engine.conversion(for: parsed.kana, leftContext: context)
             guard let self, !Task.isCancelled else { return }
             let current = self.textDocumentProxy
             guard current.documentIdentifier == document,
@@ -392,7 +427,9 @@ final class KeyboardViewController: UIInputViewController {
             }
 
             let queued = self.queuedKeyActions
-            self.commit(converted + suffix)
+            self.commit(converted.text + suffix)
+            self.recentConversion = converted
+            self.dismissedSelection = nil
             for action in queued { self.handleKeyAction(action) }
         }
         pendingCommit = (task, suffix)
@@ -411,6 +448,77 @@ final class KeyboardViewController: UIInputViewController {
             textDocumentProxy.insertText(text)
         }
         abandonComposition()
+    }
+
+    private func currentSelection() -> TextSelection? {
+        let proxy = textDocumentProxy
+        guard let text = proxy.selectedText, !text.isEmpty else { return nil }
+        return TextSelection(document: proxy.documentIdentifier, text: text,
+                             before: proxy.documentContextBeforeInput ?? "",
+                             after: proxy.documentContextAfterInput ?? "")
+    }
+
+    private func refreshCorrections() {
+        let selection = currentSelection()
+        if selection != dismissedSelection { dismissedSelection = nil }
+        guard raw.isEmpty, pendingCommit == nil, let selection, selection != dismissedSelection,
+              let correction = recentConversion?.correction(for: selection.text,
+                                                            before: selection.before, after: selection.after) else {
+            hideCorrections()
+            return
+        }
+        guard selection != shownSelection else { return }
+        hideCorrections()
+        shownSelection = selection
+        var firstButton: KeyButton?
+        for alternative in correction.alternatives {
+            let button = KeyButton(style: .space)
+            button.setTitle(alternative, for: .normal)
+            button.addAction(UIAction { [weak self] _ in
+                self?.applyCorrection(correction, replacing: selection, with: alternative)
+            }, for: .touchUpInside)
+            correctionBar.addArrangedSubview(button)
+            if let firstButton {
+                button.widthAnchor.constraint(equalTo: firstButton.widthAnchor).isActive = true
+            } else {
+                firstButton = button
+            }
+        }
+
+        let close = KeyButton(style: .utility)
+        close.setSymbol("xmark")
+        close.accessibilityLabel = "変換候補を閉じる"
+        close.addAction(UIAction { [weak self] _ in
+            self?.dismissedSelection = selection
+            self?.hideCorrections()
+        }, for: .touchUpInside)
+        correctionBar.addArrangedSubview(close)
+        close.widthAnchor.constraint(equalToConstant: 36).isActive = true
+        correctionBar.isHidden = false
+        updateColors()
+        view.setNeedsUpdateConstraints()
+        view.setNeedsLayout()
+    }
+
+    private func hideCorrections() {
+        guard !correctionBar.isHidden else { return }
+        shownSelection = nil
+        correctionBar.arrangedSubviews.forEach { $0.removeFromSuperview() }
+        correctionBar.isHidden = true
+        view.setNeedsUpdateConstraints()
+        view.setNeedsLayout()
+    }
+
+    private func applyCorrection(_ correction: JapaneseCorrection, replacing selection: TextSelection, with alternative: String) {
+        guard selection == currentSelection(), selection == shownSelection, let recentConversion else {
+            hideCorrections()
+            return
+        }
+        isWriting = true
+        defer { isWriting = false }
+        self.recentConversion = recentConversion.replacing(correction, with: alternative)
+        textDocumentProxy.insertText(alternative)
+        hideCorrections()
     }
 }
 
