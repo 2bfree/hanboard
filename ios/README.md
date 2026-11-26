@@ -4,10 +4,9 @@ BeFRee Project · HanBoard
 
 ## What this is
 
-A real iOS custom-keyboard extension and its setup app, not an in-app translation keyboard.
-The visual target is Apple's Korean two-set keyboard: the same 26 letter positions, white keys on a gray surface, centered middle row, Shift and Delete, 123, space and return. No custom branding or kana candidate row above the keyboard. The globe is shown only when iOS requests it; Face ID devices normally provide one below the keyboard. Dark appearance is supported by the palette.
+A real iOS custom-keyboard extension and its setup app. The keyboard uses the Korean two-set letter positions, a centered middle row, Shift and Delete, 123, space and Return. HanBoard uses a blue palette and labels the space bar with the active Japanese input mode. It has no candidate row. The globe is shown only when iOS requests it; Face ID devices normally provide one below the keyboard. The palette has light and dark appearances.
 
-This is an initial prototype with keyboard input verified on the iPhone simulator. Testing on a physical iPhone is pending. The system keyboard itself is not exposed for embedding or exact reuse by third-party extensions.
+This is an initial prototype with keyboard input verified on the iPhone simulator and on a physical iPhone 17 Pro. The system keyboard itself is not exposed for embedding by third-party extensions.
 
 ## Build on a Mac
 
@@ -32,8 +31,8 @@ No Full Access is requested. The app does not transmit typed text or use the mic
 
 - All 26 modern jamo retain their original positions. No archaic characters, dedicated punctuation keys, flick input, or translation.
 - Default mode shows hiragana while typing. Return or Space converts the whole pending reading once and commits it with the selected separator. Use Return after finishing a sentence, or Space to finish a shorter phrase.
-- Shift toggles forced katakana and keeps the same jamo labels. It is not the Korean doubled-consonant modifier.
-- Shift and 123 also finish the current reading before switching layouts. Delete first removes a pending jamo.
+- Shift toggles forced katakana in the letter layout. The space bar shows `日本語` or `カタカナ` for the current mode.
+- Shift and 123 finish the current reading before switching layouts. In the number layout, `#+=` opens the second symbol page. Delete first removes a pending jamo and repeats while held.
 - The setup app's test editor can copy all text or append clipboard text with the system paste button.
 - Unresolved jamo are kept internally; committing an unresolved sequence is blocked. For example, ㅓ and ㅕ remain on the keyboard without a mapping.
 - The root `mappings/ja/kana.csv` is bundled directly. No duplicate dictionary.
@@ -75,12 +74,13 @@ swiftc ios/Core/KanaMapper.swift ios/Tests/main.swift -o /tmp/hanboard-kana-test
 - **31/31 parser checks passed** against the checked-in mapping CSV on macOS and Linux.
 - XcodeGen 2.49.0 generated the project without Zenzai weights. Xcode 27.2 resolved the Swift packages, built the app and keyboard extension, and installed the app on the iPhone 18 Pro simulator. The extension bundle contains the mapping CSV and dictionary.
 - On the iPhone 18 Pro simulator, `すしです` stayed in hiragana while typing and became `寿司です` on Return. Shift produced `スシ`, which Space committed without changing the earlier line. The editor copied and pasted both lines together.
+- On a physical iPhone 17 Pro, the keyboard produced `ありがとう`, `寿司が食べたい`, `ちょっと待って`, `東京`, `こんにちは` and `カメラ`. The tests also found incorrect conversions `強はいい天気です` for `今日はいい天気です` and `これ羽なんですか` for `これは何ですか`. Number and symbol switching, Japanese question mark entry and repeated deletion worked on the same build.
 
 ## Remaining work
 
-- Verify physical-iPhone signing, installation, keyboard activation and extension memory usage.
+- Measure extension memory usage on physical iPhones.
 - Measure the first keyboard launch on a physical device. The simulator sometimes displayed a system keyboard on the first selection after reinstalling the app. Selecting HanBoard again loaded the extension.
-- Verify marked-text lifecycle and safe cursor movement across host apps; long-press keyboard switching, deletion repeat, native-style key previews, numeric keyboard variants, orientation, accessibility and dynamic return behavior.
+- Verify marked-text lifecycle and safe cursor movement across host apps, key previews, orientation, accessibility and dynamic return behavior.
 - Native-like geometry is a first approximation, not pixel-identical to any iOS version. Compare actual iPhone light/dark screenshots; no candidate row is a deliberate design difference.
 - Complete the phonetic rules for long-vowel spelling, particles は/へ/を, foreign sounds, and resolving ambiguous sequences. Current parser preserves vowel length but does not automatically restore every spelling. Basic dictionary conversion only works on the reading it receives.
 - Add correction/undo and forced hiragana/rare kana handling without a permanent candidate list. The prototype does not yet implement automatic punctuation.

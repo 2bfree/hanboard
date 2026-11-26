@@ -1,14 +1,24 @@
 import UIKit
 import JapaneseConversion
 
-/// Recreates the Korean two-set arrangement using public UIKit APIs.
-/// All key events are handled by the keyboard extension.
+/// Displays the HanBoard keyboard with the familiar Korean two-set key order.
 final class KeyboardViewController: UIInputViewController {
-    private let rows = ["ㅂㅈㄷㄱㅅㅛㅕㅑㅐㅔ", "ㅁㄴㅇㄹㅎㅗㅓㅏㅣ", "ㅋㅌㅊㅍㅠㅜㅡ"]
-    private let numberRows = ["1234567890", "-/:;()¥&@", "。、？！…ー"]
+    private enum Page {
+        case letters, numbers, symbols
+
+        var rows: [String] {
+            switch self {
+            case .letters: ["ㅂㅈㄷㄱㅅㅛㅕㅑㅐㅔ", "ㅁㄴㅇㄹㅎㅗㅓㅏㅣ", "ㅋㅌㅊㅍㅠㅜㅡ"]
+            case .numbers: ["1234567890", "-/:;()¥&@", "。、？！…ー"]
+            case .symbols: ["[]{}#%^*+=", "_\\|~<>€£•", ".,?!'\"”"]
+            }
+        }
+    }
+
     private var keys: [String: KeyButton] = [:]
     private var katakanaMode = false
-    private var symbols = false
+    private var page: Page = .letters
+    private var deleteRepeat: Task<Void, Never>?
     private var raw = ""
     private var markedText = ""
     private var documentID: UUID?
@@ -33,13 +43,22 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     override func updateViewConstraints() {
+        let preferredHeight: CGFloat = traitCollection.verticalSizeClass == .compact ? 174 : 216
         if heightConstraint == nil {
-            let constraint = view.heightAnchor.constraint(equalToConstant: 216)
+            let constraint = view.heightAnchor.constraint(equalToConstant: preferredHeight)
             constraint.priority = .defaultHigh
             constraint.isActive = true
             heightConstraint = constraint
         }
+        heightConstraint?.constant = preferredHeight
         super.updateViewConstraints()
+    }
+
+    override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+        super.traitCollectionDidChange(previousTraitCollection)
+        guard isViewLoaded else { return }
+        updateColors()
+        view.setNeedsUpdateConstraints()
     }
 
     override func viewWillAppear(_ animated: Bool) {
@@ -54,6 +73,7 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     override func viewWillDisappear(_ animated: Bool) {
+        stopDeleteRepeat()
         syncDocument()
         if let pendingCommit {
             commit(markedText + pendingCommit.suffix)
@@ -95,51 +115,68 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     private func buildKeys() {
+        stopDeleteRepeat()
         keys.values.forEach { $0.removeFromSuperview() }
         keys.removeAll()
-        for (row, labels) in (symbols ? numberRows : rows).enumerated() {
+        for (row, labels) in page.rows.enumerated() {
             for (column, label) in labels.enumerated() {
                 makeKey("r\(row)c\(column)", text: String(label)) { [weak self] in
                     self?.type(String(label))
                 }
             }
         }
-        makeKey("shift", image: katakanaMode ? "shift.fill" : "shift", special: true) { [weak self] in
-            self?.toggleShift()
+
+        if page == .letters {
+            let shift = makeKey("shift", image: katakanaMode ? "shift.fill" : "shift", style: .utility) { [weak self] in
+                self?.toggleShift()
+            }
+            shift.accessibilityLabel = "カタカナ切り替え"
+            if katakanaMode { shift.accessibilityTraits.insert(.selected) }
+        } else {
+            makeKey("shift", text: page == .numbers ? "#+=" : "123", style: .utility) { [weak self] in
+                self?.toggleShift()
+            }
         }
-        makeKey("delete", image: "delete.left", special: true) { [weak self] in self?.erase() }
-        makeKey("symbols", text: symbols ? "한글" : "123", special: true) { [weak self] in
+
+        let delete = makeKey("delete", image: "delete.left", style: .utility) { [weak self] in
+            self?.erase()
+        }
+        delete.accessibilityLabel = "削除"
+        delete.addGestureRecognizer(UILongPressGestureRecognizer(target: self, action: #selector(handleDeleteHold)))
+
+        makeKey("symbols", text: page == .letters ? "123" : "한글", style: .utility) { [weak self] in
             self?.toggleSymbols()
         }
         if needsInputModeSwitchKey {
-            let globe = KeyButton(special: true)
-            globe.setImage(UIImage(systemName: "globe"), for: .normal)
+            let globe = KeyButton(style: .utility)
+            globe.setSymbol("globe")
             globe.accessibilityLabel = "キーボードを切り替え"
             globe.addTarget(self, action: #selector(handleInputModeList(from:with:)), for: .allTouchEvents)
             view.addSubview(globe)
             keys["globe"] = globe
         }
-        makeKey("space", text: "space") { [weak self] in self?.space() }
-        makeKey("return", text: "return", special: true) { [weak self] in self?.enter() }
+        let modeLabel = katakanaMode ? "カタカナ" : "日本語"
+        let space = makeKey("space", text: modeLabel, style: .space) { [weak self] in self?.space() }
+        space.accessibilityLabel = "空白、HanBoard \(modeLabel)"
+        makeKey("return", style: .returnKey) { [weak self] in self?.enter() }
         updateColors()
         updateReturnKey()
         view.setNeedsLayout()
     }
 
+    @discardableResult
     private func makeKey(_ id: String, text: String? = nil, image: String? = nil,
-                         special: Bool = false, action: @escaping () -> Void) {
-        let button = KeyButton(special: special)
+                         style: KeyButton.Style = .letter, action: @escaping () -> Void) -> KeyButton {
+        let button = KeyButton(style: style)
         if let text {
             button.setTitle(text, for: .normal)
-            button.titleLabel?.font = .systemFont(ofSize: id.hasPrefix("r") ? 24 : 15)
         }
-        if let image { button.setImage(UIImage(systemName: image), for: .normal) }
+        if let image { button.setSymbol(image) }
         button.accessibilityLabel = text ?? image
-        if id == "shift" { button.accessibilityLabel = "カタカナ切り替え" }
-        if id == "delete" { button.accessibilityLabel = "削除" }
         button.addAction(UIAction { [weak self] _ in self?.handleKeyAction(action) }, for: .touchUpInside)
         view.addSubview(button)
         keys[id] = button
+        return button
     }
 
     private func handleKeyAction(_ action: @escaping () -> Void) {
@@ -152,45 +189,46 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     private func layoutKeys() {
-        // Native-style portrait proportions: 10 columns, centered 9-key row,
-        // 7 letters between the wider shift and delete keys, wide space bar.
         let width = view.bounds.width
         let height = view.bounds.height
-        guard width > 0, height > 0 else { return }
-        let inset: CGFloat = 3
-        let horizontalGap: CGFloat = 5
-        let verticalGap: CGFloat = 10
+        guard width >= 160, height >= 110 else { return }
+        let compact = height < 190
+        let inset: CGFloat = 6
+        let horizontalGap: CGFloat = 6
+        let verticalGap: CGFloat = compact ? 7 : 11
+        let topPadding: CGFloat = compact ? 7 : 12
+        let bottomPadding: CGFloat = 6
         let usableWidth = width - inset * 2
         let keyWidth = (usableWidth - horizontalGap * 9) / 10
-        let keyHeight = max(24, (height - 10 - verticalGap * 3) / 4)
-        let labels = symbols ? numberRows : rows
+        let keyHeight = (height - topPadding - bottomPadding - verticalGap * 3) / 4
+        let labels = page.rows
 
         func put(_ id: String, _ x: CGFloat, _ row: Int, _ w: CGFloat) {
-            keys[id]?.frame = CGRect(x: x.rounded(), y: (5 + CGFloat(row) * (keyHeight + verticalGap)).rounded(),
-                                     width: w.rounded(), height: keyHeight.rounded())
+            keys[id]?.frame = CGRect(x: x, y: topPadding + CGFloat(row) * (keyHeight + verticalGap), width: w, height: keyHeight)
         }
         for row in 0...1 {
             let n = CGFloat(labels[row].count)
             let total = n * keyWidth + (n - 1) * horizontalGap
             let start = (width - total) / 2
-            for column in labels[row].indices.enumerated() {
-                put("r\(row)c\(column.offset)", start + CGFloat(column.offset) * (keyWidth + horizontalGap), row, keyWidth)
+            for column in 0..<labels[row].count {
+                put("r\(row)c\(column)", start + CGFloat(column) * (keyWidth + horizontalGap), row, keyWidth)
             }
         }
         let count = CGFloat(labels[2].count)
-        let middleWidth = count * keyWidth + max(0, count - 1) * horizontalGap
-        let side = (usableWidth - middleWidth - horizontalGap * 2) / 2
+        let middleWidth = count * keyWidth + (count - 1) * horizontalGap
+        let outerGap = horizontalGap + min(4, keyWidth * 0.14)
+        let side = (usableWidth - middleWidth - outerGap * 2) / 2
         put("shift", inset, 2, side)
         for column in 0..<Int(count) {
-            put("r2c\(column)", inset + side + horizontalGap + CGFloat(column) * (keyWidth + horizontalGap), 2, keyWidth)
+            put("r2c\(column)", inset + side + outerGap + CGFloat(column) * (keyWidth + horizontalGap), 2, keyWidth)
         }
         put("delete", width - inset - side, 2, side)
 
-        let small = keyWidth * 1.45
-        let returnWidth = keyWidth * 2.5
+        let returnWidth = (usableWidth - horizontalGap * 2) * 0.24
+        let modeWidth = keys["globe"] == nil ? returnWidth : max(keyWidth, returnWidth - keyWidth - horizontalGap)
         var x = inset
-        put("symbols", x, 3, small)
-        x += small + horizontalGap
+        put("symbols", x, 3, modeWidth)
+        x += modeWidth + horizontalGap
         if keys["globe"] != nil {
             put("globe", x, 3, keyWidth)
             x += keyWidth + horizontalGap
@@ -202,28 +240,34 @@ final class KeyboardViewController: UIInputViewController {
 
     private func updateColors() {
         let dark = traitCollection.userInterfaceStyle == .dark
-        view.backgroundColor = dark ? UIColor(white: 0.13, alpha: 1) : UIColor(red: 0.81, green: 0.83, blue: 0.86, alpha: 1)
+        view.backgroundColor = dark ? UIColor(red: 0.12, green: 0.17, blue: 0.24, alpha: 1)
+            : UIColor(red: 0.87, green: 0.91, blue: 0.96, alpha: 1)
         keys.forEach { id, button in
-            button.applyPalette(dark: dark, active: id == "shift" && katakanaMode)
+            button.applyPalette(dark: dark, active: page == .letters && id == "shift" && katakanaMode)
         }
     }
 
     private func updateReturnKey() {
-        let label: String
+        guard let key = keys["return"] else { return }
+        let label: String?
         switch textDocumentProxy.returnKeyType {
         case .search: label = "検索"
         case .send: label = "送信"
         case .go: label = "移動"
         case .done: label = "完了"
         case .next: label = "次へ"
-        default: label = "return"
+        case .join: label = "参加"
+        case .continue: label = "続ける"
+        default: label = nil
         }
-        keys["return"]?.setTitle(label, for: .normal)
+        key.setTitle(label, for: .normal)
+        key.setSymbol(label == nil ? "return" : nil)
+        key.accessibilityLabel = label ?? "改行"
     }
 
     private func type(_ key: String) {
         syncDocument()
-        if symbols {
+        if page != .letters {
             finishComposition(inserting: key)
             return
         }
@@ -236,16 +280,45 @@ final class KeyboardViewController: UIInputViewController {
 
     private func toggleShift() {
         guard finishComposition() else { return }
-        if symbols { symbols = false }
-        katakanaMode.toggle()
+        switch page {
+        case .letters:
+            katakanaMode.toggle()
+            UIAccessibility.post(notification: .announcement, argument: katakanaMode ? "カタカナ" : "自動変換")
+        case .numbers: page = .symbols
+        case .symbols: page = .numbers
+        }
         buildKeys()
-        UIAccessibility.post(notification: .announcement, argument: katakanaMode ? "カタカナ" : "自動変換")
     }
 
     private func toggleSymbols() {
         guard finishComposition() else { return }
-        symbols.toggle()
+        page = page == .letters ? .numbers : .letters
         buildKeys()
+    }
+
+    @objc private func handleDeleteHold(_ gesture: UILongPressGestureRecognizer) {
+        switch gesture.state {
+        case .began:
+            handleKeyAction { [weak self] in self?.erase() }
+            deleteRepeat = Task { [weak self] in
+                while !Task.isCancelled {
+                    try? await Task.sleep(nanoseconds: 95_000_000)
+                    guard let self, !Task.isCancelled else { return }
+                    if self.pendingCommit == nil { self.erase() }
+                }
+            }
+        case .changed:
+            if let key = gesture.view, !key.bounds.contains(gesture.location(in: key)) { stopDeleteRepeat() }
+        case .ended, .cancelled, .failed:
+            stopDeleteRepeat()
+        default:
+            break
+        }
+    }
+
+    private func stopDeleteRepeat() {
+        deleteRepeat?.cancel()
+        deleteRepeat = nil
     }
 
     private func erase() {
@@ -342,18 +415,20 @@ final class KeyboardViewController: UIInputViewController {
 }
 
 private final class KeyButton: UIButton {
-    let special: Bool
+    enum Style { case letter, utility, space, returnKey }
+
+    let style: Style
     private var dark = false
     private var active = false
 
-    init(special: Bool) {
-        self.special = special
+    init(style: Style) {
+        self.style = style
         super.init(frame: .zero)
-        layer.cornerRadius = 5
+        layer.cornerRadius = 10
         layer.cornerCurve = .continuous
-        layer.shadowOffset = CGSize(width: 0, height: 1)
-        layer.shadowRadius = 0
-        layer.shadowOpacity = 0.30
+        titleLabel?.font = .systemFont(ofSize: style == .letter ? 23 : 16, weight: style == .letter ? .regular : .medium)
+        titleLabel?.adjustsFontSizeToFitWidth = true
+        titleLabel?.minimumScaleFactor = 0.65
         adjustsImageWhenHighlighted = false
         imageView?.contentMode = .scaleAspectFit
         tintColor = .label
@@ -361,6 +436,15 @@ private final class KeyButton: UIButton {
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    func setSymbol(_ name: String?) {
+        let configuration = UIImage.SymbolConfiguration(pointSize: 19, weight: .medium)
+        setImage(name.flatMap { UIImage(systemName: $0, withConfiguration: configuration) }, for: .normal)
+    }
+
+    override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+        bounds.insetBy(dx: -3, dy: -3).contains(point)
+    }
 
     override var isHighlighted: Bool { didSet { paint() } }
 
@@ -371,11 +455,15 @@ private final class KeyButton: UIButton {
     }
 
     private func paint() {
-        let normal = dark ? UIColor(white: 0.32, alpha: 1) : .white
-        let function = dark ? UIColor(white: 0.23, alpha: 1) : UIColor(red: 0.67, green: 0.70, blue: 0.74, alpha: 1)
-        let base = (special && !active) ? function : normal
-        backgroundColor = isHighlighted ? (special ? normal : function) : base
-        let foreground: UIColor = dark ? .white : .black
+        let normal = dark ? UIColor(red: 0.21, green: 0.27, blue: 0.36, alpha: 1) : UIColor(white: 0.99, alpha: 1)
+        let utility = dark ? UIColor(red: 0.26, green: 0.34, blue: 0.46, alpha: 1)
+            : UIColor(red: 0.78, green: 0.85, blue: 0.94, alpha: 1)
+        let accent = dark ? UIColor(red: 0.33, green: 0.50, blue: 0.78, alpha: 1)
+            : UIColor(red: 0.19, green: 0.35, blue: 0.62, alpha: 1)
+        let emphasized = style == .returnKey || active
+        let base = emphasized ? accent : (style == .utility ? utility : normal)
+        backgroundColor = isHighlighted ? base.withAlphaComponent(0.70) : base
+        let foreground: UIColor = dark || emphasized ? .white : UIColor(red: 0.10, green: 0.16, blue: 0.25, alpha: 1)
         setTitleColor(foreground, for: .normal)
         tintColor = foreground
     }
