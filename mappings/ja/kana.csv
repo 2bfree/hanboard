@@ -135,7 +135,7 @@ input,kana,katakana,category,kind,canonical,scope,status
 ㄹㅛ,りょ,リョ,yoon,canonical,ㄹㅛ,native,draft
 ㅗㅏ,わ,ワ,wa,canonical,ㅗㅏ,native,draft
 ㅇㅗㅏ,わ,ワ,wa,alias,ㅗㅏ,native,draft
-ㆁ,ん,ン,nasal,canonical,ㆁ,native,draft
+ㄴ,ん,ン,nasal,canonical,ㄴ,native,contextual_draft
 ㅌㅣ,てぃ,ティ,loanword,candidate,ㅌㅣ,katakana_extension,experimental
 ㅌㅜ,とぅ,トゥ,loanword,candidate,ㅌㅜ,katakana_extension,experimental
 ㅌㅡ,とぅ,トゥ,loanword,candidate_alias,ㅌㅜ,katakana_extension,experimental
