@@ -10,7 +10,7 @@ final class KeyboardViewController: UIInputViewController {
     private var katakanaMode = false
     private var symbols = false
     private var raw = ""
-    private var hasMarkedText = false
+    private var markedText = ""
     private var documentID: UUID?
     private var revision = 0
     private var task: Task<Void, Never>?
@@ -69,7 +69,7 @@ final class KeyboardViewController: UIInputViewController {
         super.selectionDidChange(textInput)
         guard !isWriting else { return }
         syncDocument()
-        if hasMarkedText, let selected = textDocumentProxy.selectedText, !selected.isEmpty {
+        if !markedText.isEmpty, let selected = textDocumentProxy.selectedText, !selected.isEmpty {
             abandonComposition()
         }
     }
@@ -84,7 +84,7 @@ final class KeyboardViewController: UIInputViewController {
         revision += 1
         task?.cancel()
         raw = ""
-        hasMarkedText = false
+        markedText = ""
         leftContext = ""
     }
 
@@ -209,8 +209,7 @@ final class KeyboardViewController: UIInputViewController {
     private func type(_ key: String) {
         syncDocument()
         if symbols {
-            guard finishComposition() else { return }
-            textDocumentProxy.insertText(key)
+            finishComposition(inserting: key)
             return
         }
         if raw.isEmpty {
@@ -245,11 +244,11 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     private func space() {
-        if finishComposition() { textDocumentProxy.insertText(" ") }
+        finishComposition(inserting: " ")
     }
 
     private func enter() {
-        if finishComposition() { textDocumentProxy.insertText("\n") }
+        finishComposition(inserting: "\n")
     }
 
     /// Do not overwrite committed surrounding text with delete/reinsert.
@@ -258,15 +257,14 @@ final class KeyboardViewController: UIInputViewController {
         isWriting = true
         defer { isWriting = false }
         if value.isEmpty {
-            if hasMarkedText {
+            if !markedText.isEmpty {
                 textDocumentProxy.setMarkedText("", selectedRange: NSRange(location: 0, length: 0))
                 textDocumentProxy.unmarkText()
-                hasMarkedText = false
             }
         } else {
-            hasMarkedText = true
             textDocumentProxy.setMarkedText(value, selectedRange: NSRange(location: value.utf16.count, length: 0))
         }
+        markedText = value
     }
 
     private func render() {
@@ -288,13 +286,14 @@ final class KeyboardViewController: UIInputViewController {
             guard !Task.isCancelled, self.revision == currentRevision,
                   self.documentID == currentDocument,
                   self.textDocumentProxy.documentIdentifier == currentDocument,
-                  self.hasMarkedText else { return }
+                  !self.markedText.isEmpty else { return }
             self.writeMarked(converted)
         }
     }
 
     @discardableResult
-    private func finishComposition() -> Bool {
+    private func finishComposition(inserting suffix: String = "") -> Bool {
+        syncDocument()
         if !raw.isEmpty {
             let parsed = mapper.parse(raw, mode: katakanaMode ? .katakana : .automatic)
             guard parsed.complete else {
@@ -302,12 +301,16 @@ final class KeyboardViewController: UIInputViewController {
                 return false
             }
         }
-        task?.cancel()
-        revision += 1
-        if hasMarkedText {
-            isWriting = true
+        isWriting = true
+        defer { isWriting = false }
+        let committedText = markedText + suffix
+        if !markedText.isEmpty {
+            // Clear just the marked range, then commit through the host's normal text entry.
+            textDocumentProxy.setMarkedText("", selectedRange: NSRange(location: 0, length: 0))
             textDocumentProxy.unmarkText()
-            isWriting = false
+        }
+        if !committedText.isEmpty {
+            textDocumentProxy.insertText(committedText)
         }
         abandonComposition()
         return true

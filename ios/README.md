@@ -7,7 +7,7 @@ BeFRee Project · HanBoard
 A real iOS custom-keyboard extension and its setup app, not an in-app translation keyboard.
 The visual target is Apple's Korean two-set keyboard: the same 26 letter positions, white keys on a gray surface, centered middle row, Shift and Delete, 123, space and return. No custom branding or kana candidate row above the keyboard. The globe is shown only when iOS requests it; Face ID devices normally provide one below the keyboard. Dark appearance is supported by the palette.
 
-This is an initial prototype verified to build for the iPhone simulator. Testing on a physical iPhone is pending. The system keyboard itself is not exposed for embedding or exact reuse by third-party extensions.
+This is an initial prototype with keyboard input verified on the iPhone simulator. Testing on a physical iPhone is pending. The system keyboard itself is not exposed for embedding or exact reuse by third-party extensions.
 
 ## Build on a Mac
 
@@ -73,11 +73,13 @@ swiftc ios/Core/KanaMapper.swift ios/Tests/main.swift -o /tmp/hanboard-kana-test
 
 - **31/31 parser checks passed** against the checked-in mapping CSV on macOS and Linux.
 - XcodeGen 2.49.0 generated the project without Zenzai weights. Xcode 27.2 resolved the Swift packages, built the app and keyboard extension, and installed the app on the iPhone 18 Pro simulator. The extension bundle contains the mapping CSV and dictionary.
+- In the simulator, the HanBoard keyboard was enabled from Settings. In the app's editor, `ㅅㅡㅅㅣ` converted to `寿司`, and Shift produced `スシ`. Space and Return committed both results once and preserved earlier input.
 - Rapid commit before the asynchronous converter completes can leave kana unconverted. Marked-text and conversion timing require further iOS UX testing.
 
 ## Remaining work
 
 - Verify physical-iPhone signing, installation, keyboard activation and extension memory usage.
+- Measure the first keyboard launch on a physical device. The simulator sometimes displayed a system keyboard on the first selection after reinstalling the app. Selecting HanBoard again loaded the extension.
 - Verify marked-text lifecycle and safe cursor movement across host apps; long-press keyboard switching, deletion repeat, native-style key previews, numeric keyboard variants, orientation, accessibility and dynamic return behavior.
 - Native-like geometry is a first approximation, not pixel-identical to any iOS version. Compare actual iPhone light/dark screenshots; no candidate row is a deliberate design difference.
 - Complete the phonetic rules for long-vowel spelling, particles は/へ/を, foreign sounds, and resolving ambiguous sequences. Current parser preserves vowel length but does not automatically restore every spelling. Basic dictionary conversion only works on the reading it receives.
