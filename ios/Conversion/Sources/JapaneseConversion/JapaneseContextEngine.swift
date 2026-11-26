@@ -18,11 +18,6 @@ public actor JapaneseContextEngine {
         try? FileManager.default.createDirectory(at: storage, withIntermediateDirectories: true)
         if converter == nil { converter = KanaKanjiConverter.withDefaultDictionary() }
         guard let converter else { return reading }
-        // Each request replaces the whole composition; avoid stale incremental state.
-        converter.stopComposition()
-        var composition = ComposingText()
-        composition.insertAtCursorPosition(reading, inputStyle: .direct)
-
         var mode: ConvertRequestOptions.ZenzaiMode = .off
         #if HANBOARD_ZENZAI
         if let weightURL, FileManager.default.fileExists(atPath: weightURL.path) {
@@ -47,12 +42,37 @@ public actor JapaneseContextEngine {
             zenzaiMode: mode,
             metadata: .init(versionString: "HanBoard Tokyo 0.1")
         )
+        let candidates = fullCandidates(for: reading, using: converter, options: options)
+        guard let best = candidates.first else { return reading }
+        guard case .off = mode else { return best.text }
+
+        if let spokenTopic = JapaneseCandidateSelection.spokenTopic(in: best),
+           let index = reading.index(reading.startIndex, offsetBy: spokenTopic.offset, limitedBy: reading.endIndex),
+           index < reading.endIndex, reading[index] == "わ" {
+            var writtenReading = reading
+            writtenReading.replaceSubrange(index...index, with: "は")
+            let writtenCandidates = fullCandidates(for: writtenReading, using: converter, options: options)
+            if let topic = writtenCandidates.first,
+               Float(topic.value) >= Float(best.value) + 4,
+               JapaneseCandidateSelection.hasTopicParticle(matching: spokenTopic, in: topic) {
+                return JapaneseCandidateSelection.preferredText(in: writtenCandidates, best: topic)
+            }
+        }
+
+        return JapaneseCandidateSelection.preferredText(in: candidates, best: best)
+    }
+
+    private func fullCandidates(for reading: String, using converter: KanaKanjiConverter,
+                                options: ConvertRequestOptions) -> [Candidate] {
+        converter.stopComposition()
+        var composition = ComposingText()
+        composition.insertAtCursorPosition(reading, inputStyle: .direct)
         let results = converter.requestCandidates(composition, options: options)
         // Do not auto-insert a partial or predictive result.
         let expectedRuby = reading.applyingTransform(.hiraganaToKatakana, reverse: false) ?? reading
-        return results.mainResults.first(where: {
+        return results.mainResults.filter {
             $0.inputable && !$0.text.isEmpty &&
             $0.data.map(\.ruby).joined() == expectedRuby
-        })?.text ?? reading
+        }
     }
 }

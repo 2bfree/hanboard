@@ -22,7 +22,8 @@ let package = Package(
             swiftSettings: enableZenzai
                 ? [.define("HANBOARD_ZENZAI"), .interoperabilityMode(.Cxx)]
                 : []
-        )
+        ),
+        .testTarget(name: "JapaneseConversionTests", dependencies: ["JapaneseConversion"])
     ],
     swiftLanguageModes: [.v5]
 )

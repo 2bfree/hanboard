@@ -46,6 +46,8 @@ No Full Access is requested. The app does not transmit typed text or use the mic
 
 The default build uses the offline dictionary converter. The Zenzai adapter is provided but the neural model is **not enabled by default**. In the extension, actual available memory, speed, and model rights must be checked before enabling it.
 
+The [conversion case log](../docs/conversion-cases.md) records observed errors and their fixes. Run the dictionary regression suite with `swift test --package-path ios/Conversion` from the repository root.
+
 The adapter requests the v3 left-context format documented by AzooKey. The upstream [zenz-v3-small Q5_K_M](https://huggingface.co/Miwa-Keita/zenz-v3-small-gguf) is a 72.3 MB file and is the first candidate for a device benchmark. [Zenzai Plus F16](https://huggingface.co/soichi1208/zenzai-plus) is a 192 MB derivative of zenz-v2.5-small. Validate its prompt format and converter compatibility before using it with this adapter. Both model cards list CC BY-SA 4.0.
 
 To experiment on a Mac:
