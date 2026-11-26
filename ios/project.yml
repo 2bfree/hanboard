@@ -23,6 +23,8 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: org.befreeproject.hanboard.tokyo
         INFOPLIST_FILE: App/Info.plist
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
     dependencies:
       - target: HanBoardKeyboard
         embed: true
@@ -34,9 +36,10 @@ targets:
       - Core
       - path: ../mappings/ja/kana.csv
         buildPhase: resources
-      - path: ModelWeights/zenz-v3-small.gguf
+      - path: ModelWeights
+        includes:
+          - zenz-v3-small.gguf
         buildPhase: resources
-        optional: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: org.befreeproject.hanboard.tokyo.keyboard

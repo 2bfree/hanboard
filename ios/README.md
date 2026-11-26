@@ -7,7 +7,7 @@ BeFRee Project · HanBoard
 A real iOS custom-keyboard extension and its setup app, not an in-app translation keyboard.
 The visual target is Apple's Korean two-set keyboard: the same 26 letter positions, white keys on a gray surface, centered middle row, Shift and Delete, 123, space and return. No custom branding or kana candidate row above the keyboard. The globe is shown only when iOS requests it; Face ID devices normally provide one below the keyboard. Dark appearance is supported by the palette.
 
-This is an initial source-code prototype. It has not yet been built with Xcode or tested on an iPhone. The system keyboard itself is not exposed for embedding or exact reuse by third-party extensions.
+This is an initial prototype verified to build for the iPhone simulator. Testing on a physical iPhone is pending. The system keyboard itself is not exposed for embedding or exact reuse by third-party extensions.
 
 ## Build on a Mac
 
@@ -22,7 +22,9 @@ xcodegen generate
 open HanBoardTokyo.xcodeproj
 ```
 
-In Xcode select the HanBoardTokyo scheme. Resolve Swift packages; select your signing team for both targets for device installation, and adjust the bundle identifiers if needed. Run the app, then open Settings → General → Keyboard → Keyboards → Add New Keyboard → HanBoard Tokyo. Select it with the system globe key. Test using the app's text editor or Notes.
+In Xcode select the HanBoardTokyo scheme and let Xcode resolve the Swift packages. For physical-device testing, sign in under Xcode → Settings → Apple Accounts. In Signing & Capabilities, use automatic signing and the same team for `HanBoardTokyo` and `HanBoardKeyboard`. If the default bundle identifiers are unavailable, choose a unique identifier for the app and append `.keyboard` for the extension. Select the paired iPhone as the run destination, enable Developer Mode on the iPhone if Xcode asks, and run the app.
+
+On the iPhone, open Settings → General → Keyboard → Keyboards → Add New Keyboard → HanBoard Tokyo. Select it with the system globe key in the app's text editor or Notes.
 
 No Full Access is requested. The app does not transmit typed text or use the microphone. The extension relies on publicly documented UIKit APIs.
 
@@ -43,6 +45,8 @@ No Full Access is requested. The app does not transmit typed text or use the mic
 `Conversion` is a local Swift package that pins AzooKeyKanaKanjiConverter **v0.11.2**. The adapter runs conversion on an actor, disables prediction and persistent learning, and only accepts a candidate whose reading matches the input. The keyboard debounces requests and rejects stale results.
 
 The default build uses the offline dictionary converter. The Zenzai adapter is provided but the neural model is **not enabled by default**. In the extension, actual available memory, speed, and model rights must be checked before enabling it.
+
+The adapter requests the v3 left-context format documented by AzooKey. The upstream [zenz-v3-small Q5_K_M](https://huggingface.co/Miwa-Keita/zenz-v3-small-gguf) is a 72.3 MB file and is the first candidate for a device benchmark. [Zenzai Plus F16](https://huggingface.co/soichi1208/zenzai-plus) is a 192 MB derivative of zenz-v2.5-small. Validate its prompt format and converter compatibility before using it with this adapter. Both model cards list CC BY-SA 4.0.
 
 To experiment on a Mac:
 1. Review the model's license: https://huggingface.co/Miwa-Keita/zenz-v3-small-gguf
@@ -67,13 +71,13 @@ swiftc ios/Core/KanaMapper.swift ios/Tests/main.swift -o /tmp/hanboard-kana-test
 
 ## Verification so far
 
-- Swift 6.2.1 (Linux): **31/31 parser checks passed** against the checked-in 181-row mapping CSV. The tested source and CSV Git blob hashes match the committed files.
-- Swift Package manifest: `swift package dump-package` passed. Package resolution, upstream converter compilation, XcodeGen generation and iOS runtime have not been verified.
+- **31/31 parser checks passed** against the checked-in mapping CSV on macOS and Linux.
+- XcodeGen 2.49.0 generated the project without Zenzai weights. Xcode 27.2 resolved the Swift packages, built the app and keyboard extension, and installed the app on the iPhone 18 Pro simulator. The extension bundle contains the mapping CSV and dictionary.
 - Rapid commit before the asynchronous converter completes can leave kana unconverted. Marked-text and conversion timing require further iOS UX testing.
 
 ## Remaining work
 
-- Verify the Xcode project generation, Swift package resolution and real iOS build, signing, device installation and memory usage.
+- Verify physical-iPhone signing, installation, keyboard activation and extension memory usage.
 - Verify marked-text lifecycle and safe cursor movement across host apps; long-press keyboard switching, deletion repeat, native-style key previews, numeric keyboard variants, orientation, accessibility and dynamic return behavior.
 - Native-like geometry is a first approximation, not pixel-identical to any iOS version. Compare actual iPhone light/dark screenshots; no candidate row is a deliberate design difference.
 - Complete the phonetic rules for long-vowel spelling, particles は/へ/を, foreign sounds, and resolving ambiguous sequences. Current parser preserves vowel length but does not automatically restore every spelling. Basic dictionary conversion only works on the reading it receives.
